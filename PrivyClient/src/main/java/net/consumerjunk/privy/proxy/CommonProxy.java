@@ -1,4 +1,4 @@
-package net.consumerjunk.privyserver.privy.poxy;
+package net.consumerjunk.privy.proxy;
 
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;

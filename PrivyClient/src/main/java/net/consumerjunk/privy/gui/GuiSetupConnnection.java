@@ -1,5 +1,8 @@
-package net.consumerjunk.privyserver.privy.gui;
+package net.consumerjunk.privy.gui;
 
+import net.consumerjunk.privy.PrivyMain;
+import net.consumerjunk.privy.chat.PrivyClient;
+import net.consumerjunk.privy.chat.PrivyHandler;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
@@ -22,8 +25,9 @@ public class GuiSetupConnnection extends GuiScreen {
 		ip.width = INPUT_WIDTH;
 		password = new GuiTextField(1, this.fontRendererObj, this.width / 2 - INPUT_WIDTH / 2, this.height / 3 + 30, 100, 20);
 		password.width = INPUT_WIDTH;
-		connect = new GuiButton(0, this.width / 2 - BUTTON_WIDTH / 2, this.height/3*2, "Connect to Privy server");
+		connect = new GuiButton(0, this.width / 2 - BUTTON_WIDTH / 2, this.height/3*2, !PrivyHandler.privyClient.running ? "Connect" : "Disconnect");
 		connect.width = BUTTON_WIDTH;
+		buttonList.add(connect);
 	}
 
 	@Override
@@ -49,6 +53,22 @@ public class GuiSetupConnnection extends GuiScreen {
 	@Override
 	protected void actionPerformed(GuiButton button) throws IOException {
 		super.actionPerformed(button);
+		if(button.id == connect.id) {
+			System.out.println(button.id + " ?= " + connect.id);
+			if(PrivyHandler.privyClient.running) {
+				PrivyHandler.privyClient.disconnect();
+			} else {
+				System.out.println("CONNECTING");
+				int port = 5421;
+				if (ip.getText().contains(":")) {
+					try {
+						port = Integer.parseInt(ip.getText().split(":")[1]);
+					} catch (NumberFormatException e) {
+					}
+				}
+				PrivyHandler.privyClient.connect(ip.getText(), port);
+			}
+		}
 	}
 
 	@Override
