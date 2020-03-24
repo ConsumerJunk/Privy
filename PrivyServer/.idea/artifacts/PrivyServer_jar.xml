@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="PrivyServer:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/PrivyServer_jar</output-path>
+    <root id="archive" name="PrivyServer.jar">
+      <element id="module-output" name="PrivyServer" />
+    </root>
+  </artifact>
+</component>

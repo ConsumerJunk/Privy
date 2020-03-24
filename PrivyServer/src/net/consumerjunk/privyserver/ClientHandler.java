@@ -13,18 +13,29 @@ public class ClientHandler implements Runnable {
 	private PrintWriter out;
 	private BufferedReader in;
 	private UUID uuid;
+	private boolean valid = false;
+	private boolean disconnected = false;
 
 	public ClientHandler(Socket client) throws IOException {
 		this.client = client;
 		this.out = new PrintWriter(client.getOutputStream(), true);
 		this.in = new BufferedReader(new InputStreamReader(client.getInputStream()));
 		this.uuid = UUID.randomUUID();
-		sendMessage("_SERVER_VALIDATION_REQUEST");
+		//sendMessage("_SERVER_VALIDATION_REQUEST");
 	}
 
 	public void sendDisconnectMessage(String reason) {
 		System.out.println("Server: Sending disconnect message \"" + reason + "\" to client.");
 		out.println("_SERVER_DISCONNECT:" + reason);
+		try {
+			out.close();
+			in.close();
+			System.out.println("Server: Client disconnected.");
+			Server.clients.remove(this);
+			disconnected = true;
+		} catch (IOException e) {
+			System.out.println("Server: There was an error disconnecting client " + uuid.toString() + ".");
+		}
 	}
 
 	public void sendErrorMessage(String reason) {
@@ -45,18 +56,81 @@ public class ClientHandler implements Runnable {
 
 		try {
 
-			while (true) {
-				String message = in.readLine();
-				if (message.startsWith("_CLIENT_DISCONNECTED")) {
-					System.out.println("Server: Client disconnected.");
-				} else if (message.startsWith("_CLIENT_VALIDATE:")) {
-					Server.setUsername(this.uuid, message.replace("_CLIENT_USERNAME:", ""));
-				} else if (message.startsWith("_CLIENT_USERNAME:")) {
-					Server.setUsername(this.uuid, message.replace("_CLIENT_USERNAME:", ""));
-				} else {
-					Server.messageReceived(this.uuid, message);
+			while (!disconnected) {
+				try {
+					String message = in.readLine();
+					if (message != null) {
+						if (message.startsWith("_CLIENT_DISCONNECTED")) {
+							System.out.println("Server: Client disconnected.");
+							Server.clients.remove(this);
+							this.disconnected = true;
+							Server.messageReceived(null, Server.clientUsernames.get(this.uuid) + " left the chat.");
+						} else if (message.startsWith("_CLIENT_LOGIN:")) {
+							message = message.replace("_CLIENT_LOGIN:", "");
+							String checkPassword = UUID.nameUUIDFromBytes(Server.password.getBytes()).toString();
+							if (!message.contains(":")) {
+								sendDisconnectMessage("Malformed login information.");
+								return;
+							}
+							if (checkPassword.equals(message.split(":")[1])) {
+								valid = Server.setUsername(this.uuid, message.split(":")[0]);
+							} else {
+								sendDisconnectMessage("Incorrect password.");
+							}
+						} else if (message.startsWith("/nick")) {
+							if(message.contains(" ")) {
+								Server.setNick(this.uuid, message.split(" ")[1]);
+							} else {
+								sendErrorMessage("Uou must provide a nickname.");
+							}
+						} else if (message.startsWith("/emotions")) {
+							for(String emoticonTag : EmoticonReplacer.emoticons.keySet()) {
+								sendMessage(emoticonTag + " = " + EmoticonReplacer.emoticons.get(emoticonTag));
+							}
+						} else if (message.startsWith("/msg")) {
+							if (!message.contains(" ")) {
+								sendErrorMessage("You must provide a recipient and a message.");
+								return;
+							}
+							if(message.replace("/msg " + message.split(" ")[1], "").contains(" ")) {
+								String toUsername = message.split(" ")[1];
+								String msg = message.replace("/msg " + message.split(" ")[1], "");
+								if(Server.clientUsernames.containsValue(toUsername)) {
+									UUID clientUUID = null;
+									for(UUID check : Server.clientUsernames.keySet()) {
+										if(Server.clientUsernames.get(check).equalsIgnoreCase(toUsername)) clientUUID = check;
+										continue;
+									}
+									if(clientUUID == null) {
+										sendErrorMessage("Player \"" + toUsername + "\" not found.");
+									} else {
+										sendMessage("_MESSAGE:[YOU to " + Server.clientUsernames.get(uuid) + "]:" + msg);
+										Server.sendMessageToPlayer(clientUUID, "_MESSAGE:[" + Server.clientUsernames.get(uuid) + "]:" + msg);
+									}
+								} else {
+									sendErrorMessage("Player \"" + toUsername + "\" not found.");
+								}
+							} else {
+								sendErrorMessage("You must provide a message");
+							}
+						} else {
+							if (valid) {
+								if(!message.startsWith("/")) {
+									Server.messageReceived(this.uuid, message);
+								} else {
+									sendErrorMessage("\"" + message.split(" ")[0] + "\" is not a valid command.");
+								}
+							}
+						}
+					}
+				} catch (IOException e) {
+					out.close();
+					in.close();
+					System.out.println("Server: Client disconnect.");
+					Server.clients.remove(this);
+					disconnected = true;
+					Server.messageReceived(null, Server.clientUsernames.get(this.uuid) + " left the chat.");
 				}
-
 			}
 
 		} catch (IOException e) {

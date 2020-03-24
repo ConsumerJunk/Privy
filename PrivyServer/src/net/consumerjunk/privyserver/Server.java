@@ -11,19 +11,19 @@ import java.util.concurrent.Executors;
 
 public class Server {
 
-	private static int port;
+	private static int port = -1;
 	private static int limit = 10;
-	public static String password = null;
+	public static String password = "";
 	public static boolean secured = false;
+	public static boolean allowNicks = false;
 
-	private static ArrayList<ClientHandler> clients = new ArrayList<>();
-	private static HashMap<UUID, String> clientUsernames = new HashMap<>();
+	public static ArrayList<ClientHandler> clients = new ArrayList<>();
+	public static HashMap<UUID, String> clientUsernames = new HashMap<>();
 	private static ExecutorService pool;
 
 	public static void main(String args[]) {
-
-		for(String arg : args) {
-			if(arg.startsWith("port=")) {
+		for (String arg : args) {
+			if (arg.startsWith("port=")) {
 				String parseString = arg.replace("port=", "");
 				try {
 					port = Integer.parseInt(parseString);
@@ -31,8 +31,7 @@ public class Server {
 					System.out.println("Invalid port \"" + parseString + "\". Stopping server.");
 					return;
 				}
-			}
-			if(arg.startsWith("limit=")) {
+			} else if (arg.startsWith("limit=")) {
 				String parseString = arg.replace("limit=", "");
 				try {
 					limit = Integer.parseInt(parseString);
@@ -40,36 +39,43 @@ public class Server {
 					System.out.println("Invalid limit \"" + parseString + "\". Defaulting to 10.");
 					return;
 				}
-			}
-			if(arg.startsWith("limit=")) {
-				String parseString = arg.replace("limit=", "");
-				try {
-					limit = Integer.parseInt(parseString);
-				} catch (NumberFormatException e) {
-					System.out.println("Invalid limit \"" + parseString + "\". Defaulting to 10.");
-					return;
-				}
+			} else if (arg.startsWith("password=")) {
+				String parseString = arg.replace("password=", "");
+				password = parseString;
+				secured = true;
+			} else if (arg.startsWith("nicks=")) {
+				String parseString = arg.replace("nicks=", "");
+				allowNicks = parseString.contentEquals("true");
+			} else {
+				System.out.println("Ignoring argument \"" + arg + "\".");
 			}
 		}
 
-		System.out.println("Staring server on port " + port + " with a client limit of " + limit + " and " + (secured ? "password \"" + password + "\"." : " with no password.");
+		if(port == -1) {
+			System.out.println("No port set, defaulting to 708");
+			port = 708;
+		}
+
+		System.out.println();
+
 		pool = Executors.newFixedThreadPool(limit + 1);
+		EmoticonReplacer.setup();
 
 		try {
 
 			ServerSocket listener = new ServerSocket(port);
 
-			while(true) {
+			while (true) {
 
 				System.out.println("Server: Waiting for client to connect...");
 				Socket client = listener.accept();
-				System.out.println("Server: Client connected.");
 				ClientHandler clientHandler = new ClientHandler(client);
 				clients.add(clientHandler);
+				System.out.println("Server: Client #" + clients.size() + " connected.");
 
 				pool.execute(clientHandler);
 
-				if(clients.size() > limit) {
+				if (clients.size() > limit) {
 					clientHandler.sendDisconnectMessage("Maximum client connections reached.");
 				}
 
@@ -81,28 +87,61 @@ public class Server {
 
 	}
 
-	public static void setUsername(UUID clientUUID, String clientUsername) {
-		if(clientUsernames.containsKey(clientUUID)) {
+	public static void setNick(UUID clientUUID, String nickname) {
+		if(allowNicks) {
+			boolean taken = false;
+			for(UUID uuid : clientUsernames.keySet()) {
+				taken |= clientUsernames.get(uuid).equalsIgnoreCase(nickname);
+			}
+			if(!taken) {
+				Server.messageReceived(null, Server.clientUsernames.get(clientUUID) + " is now \"" + nickname + "\".");
+				clientUsernames.remove(clientUUID);
+				clientUsernames.put(clientUUID, nickname);
+				sendMessageToPlayer(clientUUID, "Nickname set to " + nickname + ".");
+			} else {
+				sendMessageToPlayer(clientUUID, "Identity theft is not joke, Jim!");
+			}
+		} else {
+			sendMessageToPlayer(clientUUID, "This server doesn't allow nicknames :(");
+			return;
+		}
+	}
+
+	public static boolean sendMessageToPlayer(UUID player, String message) {
+		clients.forEach(client -> {
+			if(client.getUuid() == player) {
+				client.sendMessage(message);
+			}
+		});
+		return clientUsernames.containsKey(player);
+	}
+
+	public static boolean setUsername(UUID clientUUID, String clientUsername) {
+		if (clientUsernames.containsKey(clientUUID)) {
 			System.out.println("Server: Client " + clientUUID + " attempted to register pre-existing username.");
+			return false;
 		} else {
 			clientUsernames.put(clientUUID, clientUsername);
 			System.out.println("Server: Client " + clientUUID + " set username to " + clientUsername + ".");
+			messageReceived(null, clientUsername + " joined the chat.");
+			return true;
 		}
 	}
 
 	public static void messageReceived(UUID clientUUID, String message) {
 
-		System.out.println(clientUsernames.containsKey(clientUUID)?clientUsernames.get(clientUUID):clientUUID.toString() + ": " + message);
-		clients.forEach(client -> {
-			if(!client.getUuid().equals(clientUUID)) {
-				client.sendMessage(clientUsernames.get(clientUUID) + ": " + message);
-			}
-		});
+		if(clientUUID == null) {
+			clients.forEach(client -> {
+				client.sendMessage(message);
+			});
+		} else if(clientUsernames.containsKey(clientUUID)) {
+			String username = clientUsernames.get(clientUUID);
+			String formattedMessage = EmoticonReplacer.replaceEmoticons(message);
+			clients.forEach(client -> {
+				client.sendMessage(username + ": " + formattedMessage);
+			});
+		}
 
-	}
-
-	public boolean isValid(String hash) {
-		
 	}
 }
 

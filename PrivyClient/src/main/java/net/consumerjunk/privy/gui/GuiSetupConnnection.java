@@ -1,12 +1,13 @@
 package net.consumerjunk.privy.gui;
 
-import net.consumerjunk.privy.PrivyMain;
-import net.consumerjunk.privy.chat.PrivyClient;
-import net.consumerjunk.privy.chat.PrivyHandler;
-import net.minecraft.client.gui.Gui;
+import net.consumerjunk.privy.Privy;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
+import net.minecraft.client.gui.GuiNewChat;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiTextField;
+import net.minecraft.util.text.TextComponentString;
+import org.lwjgl.input.Keyboard;
 
 import java.io.IOException;
 
@@ -14,20 +15,32 @@ public class GuiSetupConnnection extends GuiScreen {
 
 	public GuiTextField ip;
 	public GuiTextField password;
-	public GuiButton connect;
+	public GuiButton toggle;
 
-	private static final int INPUT_WIDTH = 300;
+	private static final float INPUT_WIDTH_MULTIPLE = 0.6f;
+	private static final float PASSWORD_WIDTH_MULTIPLE = 0.8f;
 	private static final int BUTTON_WIDTH = 80;
+
+	public static String lastIP = "";
+	public static String lastPassword = "";
 
 	@Override
 	public void initGui() {
-		ip = new GuiTextField(1, this.fontRendererObj, this.width / 2 - INPUT_WIDTH / 2, this.height / 3, 100, 20);
-		ip.width = INPUT_WIDTH;
-		password = new GuiTextField(1, this.fontRendererObj, this.width / 2 - INPUT_WIDTH / 2, this.height / 3 + 30, 100, 20);
-		password.width = INPUT_WIDTH;
-		connect = new GuiButton(0, this.width / 2 - BUTTON_WIDTH / 2, this.height/3*2, !PrivyHandler.privyClient.running ? "Connect" : "Disconnect");
-		connect.width = BUTTON_WIDTH;
-		buttonList.add(connect);
+
+		Keyboard.enableRepeatEvents(true);
+		int inputWidth = Math.round(this.width * INPUT_WIDTH_MULTIPLE);
+		ip = new GuiTextField(1, this.fontRendererObj, this.width / 2 - inputWidth / 2, this.height / 3, 100, 20);
+		ip.width = inputWidth;
+		ip.setText(lastIP);
+		inputWidth = Math.round(inputWidth * PASSWORD_WIDTH_MULTIPLE);
+		password = new GuiTextField(1, this.fontRendererObj, this.width / 2 - inputWidth / 2, this.height / 3 + 28, 100, 20);
+		password.width = inputWidth;
+		password.setText(lastPassword);
+		toggle = new GuiButton(0, this.width / 2 - BUTTON_WIDTH / 2, this.height/3*2, Privy.privyController.clientRunning ? "Disconnect" : "Connect");
+		toggle.width = BUTTON_WIDTH;
+		buttonList.add(toggle);
+		ip.setFocused(true);
+
 	}
 
 	@Override
@@ -37,10 +50,24 @@ public class GuiSetupConnnection extends GuiScreen {
 	}
 
 	@Override
-	protected void keyTyped(char par1, int par2) throws IOException {
-		super.keyTyped(par1, par2);
-		this.ip.textboxKeyTyped(par1, par2);
-		this.password.textboxKeyTyped(par1, par2);
+	protected void keyTyped(char typedChar, int keyCode) throws IOException {
+		super.keyTyped(typedChar, keyCode);
+		this.ip.textboxKeyTyped(typedChar, keyCode);
+		this.password.textboxKeyTyped(typedChar, keyCode);
+		if((ip.isFocused() || password.isFocused()) && keyCode == Keyboard.KEY_RETURN) {
+			actionPerformed(toggle);
+		}
+		if(keyCode == Keyboard.KEY_TAB) {
+			if(ip.isFocused()) {
+				ip.setFocused(false);
+				password.setFocused(true);
+			} else if(password.isFocused()) {
+				password.setFocused(false);
+				ip.setFocused(true);
+			}
+		}
+		lastIP = ip.getText();
+		lastPassword = password.getText();
 	}
 
 	@Override
@@ -53,20 +80,37 @@ public class GuiSetupConnnection extends GuiScreen {
 	@Override
 	protected void actionPerformed(GuiButton button) throws IOException {
 		super.actionPerformed(button);
-		if(button.id == connect.id) {
-			System.out.println(button.id + " ?= " + connect.id);
-			if(PrivyHandler.privyClient.running) {
-				PrivyHandler.privyClient.disconnect();
-			} else {
-				System.out.println("CONNECTING");
-				int port = 5421;
-				if (ip.getText().contains(":")) {
-					try {
-						port = Integer.parseInt(ip.getText().split(":")[1]);
-					} catch (NumberFormatException e) {
+		if(button.id == toggle.id) {
+			if(!Privy.privyController.clientRunning) {
+				String regex = "^(([a-z0-9-]+\\.)+[a-z]{2,6}|((25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9]?[0-9]))(:(6553[0-5]|655[0-2]\\\\d|65[0-4]\\\\d{2}|6[0-4]\\d{3}|[1-5]\\d{4}|[1-9]\\d{0,3}))?(/[\\w/.]*)?$";
+				if(ip.getText().replaceAll(regex, "").equalsIgnoreCase(ip.getText())) {
+					boolean hasPort = ip.getText().contains(":");
+					String ipName = ip.getText();
+					int portNumber = 708;
+					if(hasPort) {
+						ipName = ip.getText().split(":")[0];
+						try {
+							portNumber = Integer.parseInt(ip.getText().split(":")[1]);
+						} catch (NumberFormatException e) {
+							Minecraft.getMinecraft().thePlayer.addChatMessage(new TextComponentString("Port must be numerical."));
+							return;
+						}
 					}
+					if(ip.getText().length() == 0) {
+						Minecraft.getMinecraft().thePlayer.addChatMessage(new TextComponentString("Server IP is empty."));
+						return;
+					}
+					Minecraft.getMinecraft().thePlayer.addChatMessage(new TextComponentString("Connecting to \"" + ipName + "\"" + (hasPort ? " on port #" + portNumber + "." : " on default port (708)." )));
+					Minecraft.getMinecraft().displayGuiScreen(null);
+					Privy.privyController.startConnection(ipName, portNumber, password.getText());
+				} else {
+					Minecraft.getMinecraft().thePlayer.addChatMessage(new TextComponentString("Invalid server IP."));
+					return;
 				}
-				PrivyHandler.privyClient.connect(ip.getText(), port);
+			} else {
+				Privy.privyController.endConnection();
+				Minecraft.getMinecraft().thePlayer.addChatMessage(new TextComponentString("Disconnected from Privy server."));
+				Minecraft.getMinecraft().displayGuiScreen(null);
 			}
 		}
 	}
@@ -77,7 +121,14 @@ public class GuiSetupConnnection extends GuiScreen {
 		this.drawDefaultBackground();
 		ip.drawTextBox();
 		password.drawTextBox();
-		connect.drawButton(mc, mouseX, mouseY);
+		drawCenteredString(fontRendererObj, "Privy - Privatize chat", this.width / 2, this.height / 5, 0x23E1F8);
+		if(ip.getText().length() == 0) {
+			drawString(fontRendererObj, "Server IP", ip.xPosition + 4, this.height / 3 + 6, 0xB0B0B0);
+		}
+		if(password.getText().length() == 0) {
+			drawString(fontRendererObj, "Server password", password.xPosition + 4, this.height / 3 + 34, 0xB0B0B0);
+		}
+		toggle.drawButton(mc, mouseX, mouseY);
 	}
 
 }

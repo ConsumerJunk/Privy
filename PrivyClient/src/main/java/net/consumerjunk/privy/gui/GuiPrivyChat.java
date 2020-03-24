@@ -1,64 +1,109 @@
 package net.consumerjunk.privy.gui;
 
-import javafx.scene.input.KeyCode;
-import net.consumerjunk.privy.chat.PrivyHandler;
+import joptsimple.internal.Strings;
+import net.consumerjunk.privy.Privy;
+import net.consumerjunk.privy.networking.PrivyController;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.gui.GuiTextField;
+import net.minecraft.client.gui.GuiChat;
+import net.minecraft.util.text.TextComponentString;
+import org.lwjgl.input.Keyboard;
 
 import java.io.IOException;
 
-public class GuiPrivyChat extends GuiScreen {
+public class GuiPrivyChat extends GuiChat {
 
-	private GuiTextField messageField;
+	private GuiButton swapButton;
+	private int index;
 
-	public GuiPrivyChat() {
-
+	public GuiPrivyChat(String defaultText) {
+		super(defaultText);
 	}
 
 	@Override
 	public void initGui() {
+		index = PrivyController.recentMessages.size() -1;
+		swapButton = new GuiButton(1, 0, this.height - 35, Privy.privyController.clientRunning && Privy.privyController.inPrivy ? "PUBLIC" : "PRIVY");
+		swapButton.width = 50;
+		swapButton.xPosition = this.width - swapButton.width - 2;
+
+		this.buttonList.add(swapButton);
+		String oldText = inputField != null ? inputField.getText() : null;
 		super.initGui();
-		messageField = new GuiTextField(0, this.fontRendererObj, 4, this.height - 14, this.width - 8, 12);
-	}
+		inputField.width = inputField.width - 36;
+		if(!Strings.isNullOrEmpty(oldText)) {
+			inputField.setText(oldText);
+		}
 
-	@Override
-	public void drawScreen(int mouseX, int mouseY, float partialTicks) {
-		messageField.drawTextBox();
-	}
-
-	@Override
-	public boolean doesGuiPauseGame() {
-		return false;
 	}
 
 	@Override
 	protected void actionPerformed(GuiButton button) throws IOException {
 		super.actionPerformed(button);
-	}
-
-	@Override
-	protected void mouseClicked(int x, int y, int btn) throws IOException {
-		super.mouseClicked(x, y, btn);
-		this.messageField.mouseClicked(x, y, btn);
-	}
-
-	@Override
-	protected void keyTyped(char typedChar, int keyCode) throws IOException {
-		super.handleInput();
-		messageField.textboxKeyTyped(typedChar, keyCode);
-		if(keyCode == 1) {
-			Minecraft.getMinecraft().thePlayer.closeScreen();
-		}
-		if(keyCode == 28 || keyCode == 156) {
-			PrivyHandler.privyClient.sendMessage(messageField.getText());
+		if(button.id == swapButton.id) {
+			Minecraft.getMinecraft().ingameGUI.getChatGUI().clearChatMessages();
+			mc.thePlayer.addChatMessage(new TextComponentString("Now chatting in " + (Privy.privyController.inPrivy && Privy.privyController.clientRunning ? "PUBLIC" : "PRIVY")));
+			if(!Privy.privyController.clientRunning) {
+				mc.displayGuiScreen(new GuiSetupConnnection());
+			} else {
+				Privy.privyController.inPrivy = !Privy.privyController.inPrivy;
+				button.displayString = Privy.privyController.clientRunning && Privy.privyController.inPrivy ? "PUBLIC" : "PRIVY";
+			}
 		}
 	}
 
 	@Override
-	public void updateScreen() {
-		super.updateScreen();
-		messageField.updateCursorCounter();
+	public void keyTyped(char typedChar, int keyCode) throws IOException {
+		if(inputField.isFocused() && PrivyController.recentMessages.size() > 0) {
+			if(keyCode == Keyboard.KEY_UP) {
+				index--;
+			}
+			if(keyCode == Keyboard.KEY_DOWN) {
+				index++;
+			}
+			if(keyCode == Keyboard.KEY_DOWN || keyCode == Keyboard.KEY_UP) {
+				boolean newLine = false;
+				if (index > PrivyController.recentMessages.size() - 1) {
+					index = PrivyController.recentMessages.size() - 1;
+					newLine = true;
+				}
+				if (index < 0)
+					index = 0;
+				if(newLine) {
+					inputField.setText("");
+				} else {
+					inputField.setText(PrivyController.recentMessages.get(index));
+				}
+			}
+		}
+		if(keyCode != Keyboard.KEY_TAB) {
+			super.keyTyped(typedChar, keyCode);
+		}
 	}
+
+	@Override
+	public void sendChatMessage(String message, boolean addToSentMessages) {
+
+		if(Privy.privyController.clientRunning && Privy.privyController.inPrivy) {
+			PrivyController.recentMessages.add(message);
+			Privy.privyController.sendMessage(message);
+		} else {
+			super.sendChatMessage(message, addToSentMessages);
+		}
+
+	}
+
+	@Override
+	public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+
+		PrivyController controller = Privy.privyController;
+		if(controller.clientRunning && controller.inPrivy) {
+			drawRect(2, this.height - 14, this.width - 2, this.height - 2, 0xEE00AAEE);
+		} else {
+			drawRect(2, this.height - 14, this.width - 2, this.height - 2, Integer.MIN_VALUE);
+		}
+		swapButton.drawButton(mc, mouseX, mouseY);
+		super.drawScreen(mouseX, mouseY, partialTicks);
+	}
+
 }
