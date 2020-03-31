@@ -1,14 +1,14 @@
 [
 {
-  "modid": "examplemod",
-  "name": "Example Mod",
-  "description": "Example placeholder mod.",
+  "modid": "privy",
+  "name": "Privy",
+  "description": "Privatize chat.",
   "version": "${version}",
   "mcversion": "${mcversion}",
   "url": "",
   "updateUrl": "",
-  "authorList": ["ExampleDude"],
-  "credits": "The Forge and FML guys, for making this example",
+  "authorList": ["ConsumerJunk"],
+  "credits": "All the servers with no party chat that made this mod a necessity.",
   "logoFile": "",
   "screenshots": [],
   "dependencies": []

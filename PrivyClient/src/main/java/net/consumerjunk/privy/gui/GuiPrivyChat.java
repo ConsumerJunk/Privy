@@ -22,7 +22,7 @@ public class GuiPrivyChat extends GuiChat {
 
 	@Override
 	public void initGui() {
-		index = PrivyController.recentMessages.size() -1;
+		index = -2;
 		swapButton = new GuiButton(1, 0, this.height - 35, Privy.privyController.clientRunning && Privy.privyController.inPrivy ? "PUBLIC" : "PRIVY");
 		swapButton.width = 50;
 		swapButton.xPosition = this.width - swapButton.width - 2;
@@ -54,29 +54,37 @@ public class GuiPrivyChat extends GuiChat {
 
 	@Override
 	public void keyTyped(char typedChar, int keyCode) throws IOException {
+
 		if(inputField.isFocused() && PrivyController.recentMessages.size() > 0) {
 			if(keyCode == Keyboard.KEY_UP) {
-				index--;
+				if(index == -2) {
+					index = PrivyController.recentMessages.size() - 1;
+					System.out.println(index);
+				} else {
+					if(index > 0) {
+						index --;
+					}
+				}
 			}
 			if(keyCode == Keyboard.KEY_DOWN) {
-				index++;
+				if(index < PrivyController.recentMessages.size() - 1) {
+					index ++;
+				}
 			}
 			if(keyCode == Keyboard.KEY_DOWN || keyCode == Keyboard.KEY_UP) {
-				boolean newLine = false;
-				if (index > PrivyController.recentMessages.size() - 1) {
-					index = PrivyController.recentMessages.size() - 1;
-					newLine = true;
-				}
-				if (index < 0)
-					index = 0;
-				if(newLine) {
-					inputField.setText("");
+				System.out.println(index);
+				if(index < PrivyController.recentMessages.size() - 1) {
+					System.out.println(PrivyController.recentMessages.get(index));
 				} else {
-					inputField.setText(PrivyController.recentMessages.get(index));
+					System.out.println("New line!");
 				}
 			}
 		}
-		if(keyCode != Keyboard.KEY_TAB) {
+		if(Privy.privyController.clientRunning && Privy.privyController.inPrivy) {
+			if (keyCode != Keyboard.KEY_TAB) {
+				super.keyTyped(typedChar, keyCode);
+			}
+		} else {
 			super.keyTyped(typedChar, keyCode);
 		}
 	}

@@ -15,13 +15,14 @@ public class ClientHandler implements Runnable {
 	private UUID uuid;
 	private boolean valid = false;
 	private boolean disconnected = false;
+	private UUID lastPM;
 
 	public ClientHandler(Socket client) throws IOException {
 		this.client = client;
 		this.out = new PrintWriter(client.getOutputStream(), true);
 		this.in = new BufferedReader(new InputStreamReader(client.getInputStream()));
 		this.uuid = UUID.randomUUID();
-		//sendMessage("_SERVER_VALIDATION_REQUEST");
+		this.lastPM = null;
 	}
 
 	public void sendDisconnectMessage(String reason) {
@@ -44,7 +45,7 @@ public class ClientHandler implements Runnable {
 	}
 
 	public void sendMessage(String message) {
-		out.println(message);
+		out.println(TextFormatter.format(message));
 	}
 
 	public UUID getUuid() {
@@ -64,7 +65,8 @@ public class ClientHandler implements Runnable {
 							System.out.println("Server: Client disconnected.");
 							Server.clients.remove(this);
 							this.disconnected = true;
-							Server.messageReceived(null, Server.clientUsernames.get(this.uuid) + " left the chat.");
+							Server.playerLeft(uuid);
+							client.close();
 						} else if (message.startsWith("_CLIENT_LOGIN:")) {
 							message = message.replace("_CLIENT_LOGIN:", "");
 							String checkPassword = UUID.nameUUIDFromBytes(Server.password.getBytes()).toString();
@@ -73,19 +75,42 @@ public class ClientHandler implements Runnable {
 								return;
 							}
 							if (checkPassword.equals(message.split(":")[1])) {
-								valid = Server.setUsername(this.uuid, message.split(":")[0]);
+								valid = Server.playerJoined(this.uuid, message.split(":")[0]);
 							} else {
 								sendDisconnectMessage("Incorrect password.");
 							}
 						} else if (message.startsWith("/nick")) {
 							if(message.contains(" ")) {
-								Server.setNick(this.uuid, message.split(" ")[1]);
+								Server.setNick(this.uuid, TextFormatter.format(message.split(" ")[1], false));
 							} else {
-								sendErrorMessage("Uou must provide a nickname.");
+								sendErrorMessage("You must provide a nickname.");
 							}
-						} else if (message.startsWith("/emotions")) {
-							for(String emoticonTag : EmoticonReplacer.emoticons.keySet()) {
-								sendMessage(emoticonTag + " = " + EmoticonReplacer.emoticons.get(emoticonTag));
+						} else if (message.startsWith("/emoji")) {
+							sendMessage("====== EMOJI List ======");
+							for(String emoticonTag : TextFormatter.emoticons.keySet()) {
+								sendMessage(emoticonTag + " = " + TextFormatter.emoticons.get(emoticonTag));
+							}
+						} else if (message.startsWith("/colors")) {
+							sendMessage("====== COLOR List ======");
+							for(String colorKey : TextFormatter.colors.keySet()) {
+								if(!colorKey.startsWith("_")) {
+									sendMessage("\u00A7r> " + TextFormatter.colors.get(colorKey) + "$" + colorKey);
+								} else {
+									if(colorKey.startsWith("_")) {
+										if(colorKey.startsWith("_B"))
+											sendMessage("\u00A7r> " + TextFormatter.colors.get(colorKey) + "$" + colorKey + "\u00A7r (Bold)");
+										if(colorKey.startsWith("_R"))
+											sendMessage("\u00A7r> " + TextFormatter.colors.get(colorKey) + "$" + colorKey + "\u00A7r (Reset)");
+										if(colorKey.startsWith("_I"))
+											sendMessage("\u00A7r> " + TextFormatter.colors.get(colorKey) + "$" + colorKey + "\u00A7r (Italics)");
+										if(colorKey.startsWith("_U"))
+											sendMessage("\u00A7r> " + TextFormatter.colors.get(colorKey) + "$" + colorKey + "\u00A7r (Underline)");
+										if(colorKey.startsWith("_S"))
+											sendMessage("\u00A7r> " + TextFormatter.colors.get(colorKey) + "$" + colorKey + "\u00A7r (Strike)");
+										if(colorKey.startsWith("_O"))
+											sendMessage("\u00A7r> " + TextFormatter.colors.get(colorKey) + "$" + colorKey + "\u00A7r (Obfuscated)");
+									}
+								}
 							}
 						} else if (message.startsWith("/msg")) {
 							if (!message.contains(" ")) {
@@ -124,12 +149,11 @@ public class ClientHandler implements Runnable {
 						}
 					}
 				} catch (IOException e) {
-					out.close();
-					in.close();
-					System.out.println("Server: Client disconnect.");
+					System.out.println("Server: Client disconnected unexpectedly.");
 					Server.clients.remove(this);
-					disconnected = true;
-					Server.messageReceived(null, Server.clientUsernames.get(this.uuid) + " left the chat.");
+					this.disconnected = true;
+					Server.playerLeft(uuid);
+					client.close();
 				}
 			}
 

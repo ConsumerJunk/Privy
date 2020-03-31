@@ -59,7 +59,7 @@ public class Server {
 		System.out.println();
 
 		pool = Executors.newFixedThreadPool(limit + 1);
-		EmoticonReplacer.setup();
+		TextFormatter.setup();
 
 		try {
 
@@ -90,16 +90,17 @@ public class Server {
 	public static void setNick(UUID clientUUID, String nickname) {
 		if(allowNicks) {
 			boolean taken = false;
+			String priorName = Server.clientUsernames.get(clientUUID);
 			for(UUID uuid : clientUsernames.keySet()) {
 				taken |= clientUsernames.get(uuid).equalsIgnoreCase(nickname);
 			}
 			if(!taken) {
-				Server.messageReceived(null, Server.clientUsernames.get(clientUUID) + " is now \"" + nickname + "\".");
+				Server.messageReceived(null, priorName + " is now \"" + nickname + "\u00A7r\".");
 				clientUsernames.remove(clientUUID);
 				clientUsernames.put(clientUUID, nickname);
-				sendMessageToPlayer(clientUUID, "Nickname set to " + nickname + ".");
+				sendMessageToPlayer(clientUUID, "Nickname set to " + nickname + "\u00A7r.");
 			} else {
-				sendMessageToPlayer(clientUUID, "Identity theft is not joke, Jim!");
+				sendMessageToPlayer(clientUUID, "Identity theft is not a joke, Jim!");
 			}
 		} else {
 			sendMessageToPlayer(clientUUID, "This server doesn't allow nicknames :(");
@@ -116,7 +117,7 @@ public class Server {
 		return clientUsernames.containsKey(player);
 	}
 
-	public static boolean setUsername(UUID clientUUID, String clientUsername) {
+	public static boolean playerJoined(UUID clientUUID, String clientUsername) {
 		if (clientUsernames.containsKey(clientUUID)) {
 			System.out.println("Server: Client " + clientUUID + " attempted to register pre-existing username.");
 			return false;
@@ -128,6 +129,11 @@ public class Server {
 		}
 	}
 
+	public static boolean playerLeft(UUID clientUUID) {
+		messageReceived(null, clientUsernames.get(clientUUID) + "\u00A7r left the chat.");
+		return true;
+	}
+
 	public static void messageReceived(UUID clientUUID, String message) {
 
 		if(clientUUID == null) {
@@ -136,9 +142,9 @@ public class Server {
 			});
 		} else if(clientUsernames.containsKey(clientUUID)) {
 			String username = clientUsernames.get(clientUUID);
-			String formattedMessage = EmoticonReplacer.replaceEmoticons(message);
+			String formattedMessage = TextFormatter.format(message);
 			clients.forEach(client -> {
-				client.sendMessage(username + ": " + formattedMessage);
+				client.sendMessage("<" + username + "\u00A7r> " + formattedMessage);
 			});
 		}
 
